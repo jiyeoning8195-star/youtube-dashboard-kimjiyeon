@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 주간 회의록 대시보드 (API 연동)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .api-setup {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .api-setup h3 {
+            color: #856404;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .api-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .api-input-group input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .api-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .api-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .api-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .date-selector {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .date-selector label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .date-selector input {
+            padding: 8px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+
+        .btn-export {
+            background: #ed8936;
+            color: white;
+        }
+
+        .btn-export:hover:not(:disabled) {
+            background: #dd6b20;
+            transform: translateY(-2px);
+        }
+
+        .btn-api {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-api:hover:not(:disabled) {
+            background: #e53e3e;
+            transform: translateY(-2px);
+        }
+
+        .channel-input {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 2fr 2fr auto auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .input-row input {
+            padding: 10px 15px;
+            border: 2px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn-fetch {
+            background: #4299e1;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .btn-fetch:hover:not(:disabled) {
+            background: #3182ce;
+        }
+
+        .btn-remove {
+            background: #fc8181;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-remove:hover {
+            background: #f56565;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-wrapper {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .growth {
+            font-weight: 600;
+        }
+
+        .growth.positive {
+            color: #48bb78;
+        }
+
+        .growth.negative {
+            color: #f56565;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .help-text a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        .video-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .video-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: #f7fafc;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .video-item strong {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 YouTube 주간 회의록 대시보드 (API 연동)</h1>
+            <div class="date-selector">
+                <label>주간 기간:</label>
+                <input type="date" id="startDate">
+                <span>~</span>
+                <input type="date" id="endDate">
+                <span style="font-size: 12px; color: #666; margin-left: 10px;">(기본: 지난주 월~일)</span>
+            </div>
+        </header>
+
+        <div class="api-setup">
+            <h3>🔑 YouTube API 설정</h3>
+            <div class="api-input-group">
+                <input type="password" id="apiKey" placeholder="YouTube Data API Key를 입력하세요">
+                <button class="btn btn-primary" onclick="saveApiKey()">API Key 저장</button>
+            </div>
+            <div class="api-status" id="apiStatus"></div>
+            <div class="help-text">
+                💡 <strong>API Key 발급 방법:</strong><br>
+                1. <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a> 접속<br>
+                2. 새 프로젝트 생성 또는 기존 프로젝트 선택<br>
+                3. "API 및 서비스" → "사용 설정된 API 및 서비스" → "+ API 및 서비스 사용 설정"<br>
+                4. "YouTube Data API v3" 검색 후 사용 설정<br>
+                5. "사용자 인증 정보" → "사용자 인증 정보 만들기" → "API 키" 선택<br>
+                6. 생성된 API 키를 위 입력창에 붙여넣기<br><br>
+                ✅ <strong>API Key와 채널 정보는 브라우저에 자동 저장됩니다.</strong> 다음 접속 시 다시 입력할 필요가 없습니다.
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="addChannel()">➕ 채널 추가</button>
+            <button class="btn btn-export" onclick="exportToExcel()">📥 엑셀 다운로드</button>
+            <button class="btn btn-export" onclick="copyReport()">📋 텍스트 복사</button>
+            <button class="btn" onclick="clearAllData()" style="background: #cbd5e0; margin-left: auto;">🗑️ 모든 데이터 초기화</button>
+        </div>
+
+        <h2 class="section-title">채널별 데이터 입력</h2>
+        <div class="help-text" style="margin-bottom: 15px;">
+            💡 채널 ID 찾는 방법: YouTube 채널 페이지 주소에서 "@채널명" 뒤의 부분 또는 "/channel/" 뒤의 문자열입니다.
+        </div>
+        <div id="channelInputs"></div>
+    </div>
+
+    <script>
+        let channels = [];
+        let channelChart;
+        let apiKey = localStorage.getItem('youtubeApiKey') || '';
+
+        // 로컬 스토리지에서 채널 데이터 불러오기
+        function loadChannelsFromStorage() {
+            const savedChannels = localStorage.getItem('youtubeChannels');
+            if (savedChannels) {
+                try {
+                    const parsed = JSON.parse(savedChannels);
+                    // ID 재생성하고 모든 데이터 복원
+                    channels = parsed.map(ch => ({
+                        id: Date.now() + Math.random(),
+                        name: ch.name || '',
+                        channelId: ch.channelId || '',
+                        subscribers: ch.subscribers || '',
+                        weeklyViews: ch.weeklyViews || 0,
+                        videoDetails: ch.videoDetails || [],
+                        manualVideos: ch.manualVideos || []
+                    }));
+                } catch (e) {
+                    console.error('채널 데이터 로드 실패:', e);
+                    channels = [];
+                }
+            }
+        }
+
+        // 채널 데이터를 로컬 스토리지에 저장
+        function saveChannelsToStorage() {
+            try {
+                // 영상 데이터도 포함해서 저장
+                const dataToSave = channels.map(ch => ({
+                    name: ch.name,
+                    channelId: ch.channelId,
+                    subscribers: ch.subscribers,
+                    weeklyViews: ch.weeklyViews || 0,
+                    videoDetails: ch.videoDetails || [],
+                    manualVideos: ch.manualVideos || []
+                }));
+                localStorage.setItem('youtubeChannels', JSON.stringify(dataToSave));
+            } catch (e) {
+                console.error('채널 데이터 저장 실패:', e);
+            }
+        }
+
+        // 초기화
+        function init() {
+            // API Key 로드
+            if (apiKey) {
+                document.getElementById('apiKey').value = apiKey;
+                showApiStatus('API Key가 저장되어 있습니다.', 'success');
+            }
+            
+            // 저장된 채널 데이터 로드
+            loadChannelsFromStorage();
+            
+            // 채널이 없으면 기본 1개 추가
+            if (channels.length === 0) {
+                addChannel();
+            } else {
+                renderChannelInputs();
+            }
+            
+            initDates();
+        }
+
+        // 날짜 초기화 (지난주 월요일~일요일)
+        function initDates() {
+            const today = new Date();
+            
+            // 지난주 월요일 계산
+            const dayOfWeek = today.getDay(); // 0(일) ~ 6(토)
+            const lastMonday = new Date(today);
+            
+            // 오늘이 월요일이면 7일 전, 아니면 지난주 월요일
+            if (dayOfWeek === 0) { // 일요일
+                lastMonday.setDate(today.getDate() - 6);
+            } else if (dayOfWeek === 1) { // 월요일
+                lastMonday.setDate(today.getDate() - 7);
+            } else { // 화~토
+                lastMonday.setDate(today.getDate() - (dayOfWeek + 6));
+            }
+            
+            // 지난주 일요일
+            const lastSunday = new Date(lastMonday);
+            lastSunday.setDate(lastMonday.getDate() + 6);
+
+            document.getElementById('startDate').valueAsDate = lastMonday;
+            document.getElementById('endDate').valueAsDate = lastSunday;
+        }
+
+        // 날짜 범위 빠른 설정
+        function setDateRange(days) {
+            const today = new Date();
+            const endDate = new Date(today);
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() - days);
+
+            document.getElementById('startDate').valueAsDate = startDate;
+            document.getElementById('endDate').valueAsDate = endDate;
+        }
+
+        // API Key 저장
+        function saveApiKey() {
+            const key = document.getElementById('apiKey').value.trim();
+            if (!key) {
+                showApiStatus('API Key를 입력해주세요.', 'error');
+                return;
+            }
+            apiKey = key;
+            localStorage.setItem('youtubeApiKey', key);
+            showApiStatus('API Key가 저장되었습니다!', 'success');
+        }
+
+        // API 상태 메시지 표시
+        function showApiStatus(message, type) {
+            const status = document.getElementById('apiStatus');
+            status.textContent = message;
+            status.className = `api-status ${type}`;
+            status.style.display = 'block';
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+
+        // 채널 추가
+        function addChannel() {
+            const id = Date.now() + Math.random(); // 더 고유한 ID 생성
+            channels.push({ 
+                id, 
+                name: '', 
+                channelId: '',
+                subscribers: '',
+                weeklyViews: 0,
+                videoDetails: [],
+                manualVideos: [] // 수동 입력한 영상 데이터
+            });
+            saveChannelsToStorage();
+            renderChannelInputs();
+        }
+
+        // 채널 제거
+        function removeChannel(id) {
+            channels = channels.filter(c => c.id !== id);
+            saveChannelsToStorage();
+            renderChannelInputs();
+        }
+
+        // 채널 입력 필드 렌더링
+        function renderChannelInputs() {
+            const container = document.getElementById('channelInputs');
+            container.innerHTML = channels.map(channel => `
+                <div class="channel-input">
+                    <div class="input-row">
+                        <input type="text" placeholder="채널명 (예: 개플릭스)" 
+                               value="${channel.name}"
+                               onchange="updateChannel(${channel.id}, 'name', this.value)">
+                        <input type="text" placeholder="구독자 수 (예: 1.29만)" 
+                               value="${channel.subscribers}"
+                               onchange="updateChannel(${channel.id}, 'subscribers', this.value)">
+                        <input type="text" placeholder="채널 ID 또는 @사용자명 (선택)" 
+                               value="${channel.channelId}"
+                               onchange="updateChannel(${channel.id}, 'channelId', this.value)"
+                               style="grid-column: span 2;">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn-fetch" onclick="fetchChannelData(${channel.id})" 
+                                ${!apiKey || !channel.channelId ? 'disabled' : ''}
+                                style="flex: 1;">
+                            📥 API로 자동 가져오기
+                        </button>
+                        <button class="btn-fetch" onclick="showManualVideoInput(${channel.id})"
+                                style="flex: 1; background: #48bb78;">
+                            ✏️ 수동 입력
+                        </button>
+                        <button class="btn-remove" onclick="removeChannel(${channel.id})">삭제</button>
+                    </div>
+                    
+                    <div id="manualInput_${channel.id}" style="display: none; margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border: 2px solid #48bb78;">
+                        <div style="font-weight: 600; margin-bottom: 10px; color: #48bb78;">📝 영상별 조회수 수동 입력</div>
+                        <div style="font-size: 13px; color: #666; margin-bottom: 10px;">
+                            형식: 영상제목 조회수 (예: "야나두1 1.1천" 또는 "야나두1 1100")<br>
+                            한 줄에 하나씩 입력하세요.
+                        </div>
+                        <textarea id="videoInput_${channel.id}" 
+                                  style="width: 100%; min-height: 120px; padding: 10px; border: 2px solid #cbd5e0; border-radius: 8px; font-family: monospace; font-size: 13px;"
+                                  placeholder="야나두1 1.1천
+야나두2 3.3천
+야나두3 985"></textarea>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button class="btn-primary" onclick="parseManualVideos(${channel.id})" style="flex: 1;">
+                                ✅ 적용
+                            </button>
+                            <button class="btn" onclick="document.getElementById('manualInput_${channel.id}').style.display='none'" 
+                                    style="flex: 1; background: #cbd5e0;">
+                                취소
+                            </button>
+                        </div>
+                    </div>
+
+                    ${(channel.videoDetails.length > 0 || channel.manualVideos.length > 0) ? `
+                        <div class="video-list">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <strong>지난 주 업로드 영상 (${(channel.videoDetails.length || channel.manualVideos.length)}개)</strong>
+                            </div>
+                            ${(channel.videoDetails.length > 0 ? channel.videoDetails : channel.manualVideos).map((v, idx) => `
+                                <div class="video-item">
+                                    <strong>${v.title || `영상 ${idx + 1}`}</strong>
+                                    <span style="float: right; color: #667eea; font-weight: 600;">${formatNumber(v.views)}회</span>
+                                    ${v.publishedAt ? `<br><span style="font-size: 12px; color: #999;">업로드: ${v.publishedAt}</span>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // 채널 데이터 업데이트
+        function updateChannel(id, field, value) {
+            const channel = channels.find(c => c.id === id);
+            if (channel) {
+                channel[field] = (field === 'weeklyViews') ? Number(value) : value;
+                saveChannelsToStorage();
+            }
+        }
+
+        // 수동 입력 창 표시
+        function showManualVideoInput(channelId) {
+            document.getElementById(`manualInput_${channelId}`).style.display = 'block';
+        }
+
+        // 조회수 문자열 파싱 (1.1천 -> 1100)
+        function parseViewCount(viewStr) {
+            viewStr = viewStr.trim();
+            
+            // 천, 만 단위 처리
+            if (viewStr.includes('천')) {
+                const num = parseFloat(viewStr.replace('천', ''));
+                return Math.round(num * 1000);
+            } else if (viewStr.includes('만')) {
+                const num = parseFloat(viewStr.replace('만', ''));
+                return Math.round(num * 10000);
+            } else if (viewStr.includes('k') || viewStr.includes('K')) {
+                const num = parseFloat(viewStr.replace(/k|K/i, ''));
+                return Math.round(num * 1000);
+            } else {
+                // 쉼표 제거 후 숫자로 변환
+                return parseInt(viewStr.replace(/,/g, '')) || 0;
+            }
+        }
+
+        // 수동 입력 영상 파싱
+        function parseManualVideos(channelId) {
+            const channel = channels.find(c => c.id === channelId);
+            if (!channel) return;
+
+            const input = document.getElementById(`videoInput_${channelId}`).value;
+            const lines = input.split('\n').filter(line => line.trim());
+            
+            const videos = [];
+            let totalViews = 0;
+
+            for (const line of lines) {
+                // 영상제목과 조회수 분리 (마지막 공백 기준)
+                const parts = line.trim().split(/\s+/);
+                if (parts.length < 2) continue;
+
+                const views = parseViewCount(parts[parts.length - 1]);
+                const title = parts.slice(0, -1).join(' ');
+
+                videos.push({
+                    title: title,
+                    views: views
+                });
+                totalViews += views;
+            }
+
+            if (videos.length === 0) {
+                alert('영상 데이터를 입력해주세요.');
+                return;
+            }
+
+            channel.manualVideos = videos;
+            channel.videoDetails = []; // API 데이터는 초기화
+            channel.weeklyViews = totalViews;
+
+            saveChannelsToStorage(); // 데이터 저장
+
+            document.getElementById(`manualInput_${channelId}`).style.display = 'none';
+            renderChannelInputs();
+            alert(`✅ ${videos.length}개 영상 데이터가 입력되었습니다!\n총 조회수: ${formatNumber(totalViews)}`);
+        }
+
+        // YouTube API로 채널 데이터 가져오기
+        async function fetchChannelData(channelId) {
+            const channel = channels.find(c => c.id === channelId);
+            if (!channel || !channel.channelId) {
+                alert('채널 ID를 입력해주세요.');
+                return;
+            }
+
+            if (!apiKey) {
+                alert('API Key를 먼저 저장해주세요.');
+                return;
+            }
+
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="loading"></span> 로딩중...';
+            btn.disabled = true;
+
+            try {
+                // 채널 ID 또는 사용자명으로 채널 정보 가져오기
+                let actualChannelId = channel.channelId;
+                
+                if (channel.channelId.startsWith('@')) {
+                    // @사용자명으로 채널 ID 찾기
+                    const searchResponse = await fetch(
+                        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(channel.channelId)}&type=channel&key=${apiKey}`
+                    );
+                    const searchData = await searchResponse.json();
+                    
+                    if (searchData.error) {
+                        throw new Error(searchData.error.message);
+                    }
+                    
+                    if (searchData.items && searchData.items.length > 0) {
+                        actualChannelId = searchData.items[0].snippet.channelId;
+                    } else {
+                        throw new Error('채널을 찾을 수 없습니다.');
+                    }
+                }
+
+                // 주간 기간 설정
+                const startDate = new Date(document.getElementById('startDate').value);
+                const endDate = new Date(document.getElementById('endDate').value);
+                endDate.setHours(23, 59, 59, 999);
+
+                // 채널의 업로드 재생목록 ID와 구독자 수 가져오기
+                const channelResponse = await fetch(
+                    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,snippet,statistics&id=${actualChannelId}&key=${apiKey}`
+                );
+                const channelData = await channelResponse.json();
+
+                if (channelData.error) {
+                    throw new Error(channelData.error.message);
+                }
+
+                if (!channelData.items || channelData.items.length === 0) {
+                    throw new Error('채널을 찾을 수 없습니다.');
+                }
+
+                const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
+                channel.name = channel.name || channelData.items[0].snippet.title;
+                
+                // 구독자 수 포맷팅
+                const subscriberCount = parseInt(channelData.items[0].statistics.subscriberCount);
+                if (subscriberCount >= 10000) {
+                    channel.subscribers = `${(subscriberCount / 10000).toFixed(2)}만`;
+                } else if (subscriberCount >= 1000) {
+                    channel.subscribers = `${(subscriberCount / 1000).toFixed(1)}천`;
+                } else {
+                    channel.subscribers = subscriberCount.toString();
+                }
+
+                // 최근 업로드 영상 목록 가져오기 (최대 50개)
+                const playlistResponse = await fetch(
+                    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&key=${apiKey}`
+                );
+                const playlistData = await playlistResponse.json();
+
+                if (playlistData.error) {
+                    throw new Error(playlistData.error.message);
+                }
+
+                // 기간 내 업로드된 영상 필터링
+                const videoIds = [];
+                const videoDetails = [];
+
+                for (const item of playlistData.items) {
+                    const publishedDate = new Date(item.snippet.publishedAt);
+                    if (publishedDate >= startDate && publishedDate <= endDate) {
+                        videoIds.push(item.snippet.resourceId.videoId);
+                    }
+                }
+
+                if (videoIds.length === 0) {
+                    alert('선택한 기간에 업로드된 영상이 없습니다.');
+                    channel.currentViews = 0;
+                    channel.videoDetails = [];
+                    renderChannelInputs();
+                    return;
+                }
+
+                // 영상별 조회수 가져오기
+                const videosResponse = await fetch(
+                    `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds.join(',')}&key=${apiKey}`
+                );
+                const videosData = await videosResponse.json();
+
+                if (videosData.error) {
+                    throw new Error(videosData.error.message);
+                }
+
+                // 총 조회수 계산
+                let totalViews = 0;
+                for (const video of videosData.items) {
+                    const views = parseInt(video.statistics.viewCount);
+                    totalViews += views;
+                    videoDetails.push({
+                        title: video.snippet.title,
+                        views: views,
+                        publishedAt: new Date(video.snippet.publishedAt).toLocaleDateString('ko-KR')
+                    });
+                }
+
+                channel.currentViews = totalViews;
+                channel.weeklyViews = totalViews;
+                channel.videoDetails = videoDetails;
+                channel.manualVideos = []; // 수동 입력 데이터는 초기화
+
+                saveChannelsToStorage(); // 데이터 저장
+
+                alert(`✅ 데이터를 성공적으로 가져왔습니다!\n\n채널: ${channel.name}\n구독자: ${channel.subscribers}\n영상 ${videoIds.length}개, 조회수: ${formatNumber(totalViews)}`);
+                renderChannelInputs();
+
+            } catch (error) {
+                console.error('API Error:', error);
+                alert(`❌ 오류 발생: ${error.message}\n\nAPI Key가 올바른지, 할당량이 남아있는지 확인해주세요.`);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // 전체 채널 데이터 가져오기
+        async function fetchAllChannels() {
+            if (!apiKey) {
+                alert('API Key를 먼저 저장해주세요.');
+                return;
+            }
+
+            const validChannels = channels.filter(c => c.channelId);
+            if (validChannels.length === 0) {
+                alert('채널 ID가 입력된 채널이 없습니다.');
+                return;
+            }
+
+            const btn = document.getElementById('fetchAllBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="loading"></span> 전체 가져오는 중...';
+            btn.disabled = true;
+
+            let successCount = 0;
+            for (const channel of validChannels) {
+                try {
+                    // 각 채널의 fetch 버튼 클릭 이벤트 시뮬레이션
+                    await fetchChannelData(channel.id);
+                    successCount++;
+                    await new Promise(resolve => setTimeout(resolve, 500)); // API 요청 간격
+                } catch (error) {
+                    console.error(`Channel ${channel.name} error:`, error);
+                }
+            }
+
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            alert(`${successCount}/${validChannels.length} 채널의 데이터를 가져왔습니다.`);
+        }
+
+        // 숫자 포맷팅
+        function formatNumber(num) {
+            return num.toLocaleString('ko-KR');
+        }
+
+        // 보고서 생성
+        function generateReport() {
+            if (channels.length === 0 || channels.every(c => !c.name)) {
+                alert('최소 1개 이상의 채널을 추가해주세요.');
+                return;
+            }
+
+            document.getElementById('statsSection').style.display = 'block';
+
+            // 통계 계산
+            const totalViews = channels.reduce((sum, c) => sum + (c.weeklyViews || 0), 0);
+            const avgViews = channels.length > 0 ? totalViews / channels.length : 0;
+            const topChannel = channels.reduce((max, c) => 
+                (c.weeklyViews > max.weeklyViews) ? c : max, 
+                { name: '-', weeklyViews: 0 }
+            );
+
+            document.getElementById('totalViews').textContent = formatNumber(totalViews);
+            document.getElementById('avgViews').textContent = formatNumber(Math.round(avgViews));
+            document.getElementById('channelCount').textContent = channels.length;
+            document.getElementById('topChannel').textContent = topChannel.name;
+
+            // 테이블 생성
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = channels.map(channel => {
+                const videoCount = channel.videoDetails.length || channel.manualVideos.length;
+                const avgPerVideo = videoCount > 0 ? Math.round(channel.weeklyViews / videoCount) : 0;
+
+                return `
+                    <tr>
+                        <td><strong>${channel.name}</strong></td>
+                        <td>${channel.subscribers || '-'}</td>
+                        <td>${formatNumber(channel.weeklyViews)}</td>
+                        <td>${videoCount}개</td>
+                        <td>${formatNumber(avgPerVideo)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // 차트 생성
+            createCharts();
+
+            // 상단으로 스크롤
+            document.getElementById('statsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 차트 생성
+        function createCharts() {
+            const channelNames = channels.map(c => c.name);
+            const weeklyViews = channels.map(c => c.weeklyViews);
+
+            // 채널별 조회수 차트
+            const ctx1 = document.getElementById('channelChart');
+            if (channelChart) channelChart.destroy();
+            channelChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: channelNames,
+                    datasets: [{
+                        label: '지난 주 조회수',
+                        data: weeklyViews,
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // 엑셀 다운로드
+        function exportToExcel() {
+            if (channels.length === 0 || channels.every(c => !c.name)) {
+                alert('최소 1개 이상의 채널을 추가해주세요.');
+                return;
+            }
+
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            let csv = '\uFEFF'; // UTF-8 BOM
+            csv += `YouTube 주간 회의록,${startDate} ~ ${endDate}\n\n`;
+            csv += '채널명,구독자,조회수,업로드 영상 수,평균 조회수/영상\n';
+            
+            channels.forEach(channel => {
+                const videoCount = channel.videoDetails.length || channel.manualVideos.length;
+                const avgPerVideo = videoCount > 0 ? Math.round(channel.weeklyViews / videoCount) : 0;
+                
+                csv += `${channel.name},${channel.subscribers || '-'},${channel.weeklyViews},${videoCount},${avgPerVideo}\n`;
+            });
+
+            // 영상별 상세 데이터
+            csv += '\n\n채널별 영상 상세\n';
+            channels.forEach(channel => {
+                const videos = channel.videoDetails.length > 0 ? channel.videoDetails : channel.manualVideos;
+                if (videos.length > 0) {
+                    csv += `\n${channel.name}\n`;
+                    csv += '영상제목,조회수\n';
+                    videos.forEach(v => {
+                        csv += `${v.title},${v.views}\n`;
+                    });
+                }
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `youtube_weekly_report_${startDate}.csv`;
+            link.click();
+        }
+
+        // 텍스트 복사
+        function copyReport() {
+            if (channels.length === 0 || channels.every(c => !c.name)) {
+                alert('최소 1개 이상의 채널을 추가해주세요.');
+                return;
+            }
+
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            let report = `📊 YouTube 주간 회의록 (${startDate} ~ ${endDate})\n\n`;
+            
+            channels.forEach(channel => {
+                const videos = channel.videoDetails.length > 0 ? channel.videoDetails : channel.manualVideos;
+                
+                report += `${channel.name}`;
+                if (channel.subscribers) {
+                    report += ` 구독자 ${channel.subscribers}`;
+                }
+                report += `\n[지난 주 업로드]\n`;
+                
+                if (videos.length > 0) {
+                    videos.forEach(v => {
+                        const viewsText = v.views >= 10000 
+                            ? `${(v.views / 10000).toFixed(1)}만`
+                            : v.views >= 1000 
+                            ? `${(v.views / 1000).toFixed(1)}천`
+                            : v.views.toString();
+                        report += `${v.title} ${viewsText}\n`;
+                    });
+                } else {
+                    report += `(영상 없음)\n`;
+                }
+                report += `\n`;
+            });
+
+            navigator.clipboard.writeText(report).then(() => {
+                alert('보고서가 클립보드에 복사되었습니다!');
+            });
+        }
+
+        // 모든 데이터 초기화
+        function clearAllData() {
+            if (confirm('⚠️ 저장된 모든 채널 데이터를 삭제하시겠습니까?\n(API Key는 유지됩니다)')) {
+                localStorage.removeItem('youtubeChannels');
+                channels = [];
+                addChannel();
+                alert('✅ 모든 채널 데이터가 초기화되었습니다.');
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        init();
+    </script>
+</body>
+</html>
